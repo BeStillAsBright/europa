@@ -56,6 +56,33 @@ typedef struct eu_Music {
 ////////////////////////
 const Uint8 *KEYBOARD_STATE;
 
+////////////////////////
+// General functions: //
+// eu.*               //
+////////////////////////
+
+// eu.Init()
+static int eu_init(lua_State *L)
+{
+	SDL_SetMainReady(); // because SDL_MAIN_HANDLED
+	SDL_Init(SDL_INIT_EVERYTHING); // everything for now
+	int flags = IMG_INIT_JPG | IMG_INIT_PNG; // I don't think we need TIF
+	int init_res = IMG_Init(flags);
+	if ((init_res & flags) != flags) {
+		lua_pushfstring(L,"SDL_image init failed: %s\n",IMG_GetError());
+		lua_error(L);
+	}
+	
+	Mix_AllocateChannels(100);
+	int merr = Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT,2,1024);
+	if (merr) {
+		lua_pushfstring(L,"eu.init-Mix_OpenAudio: %s\n",Mix_GetError());
+		lua_error(L);
+	}
+
+	return 0;
+}
+
 ///////////////////
 // main function //
 ///////////////////
