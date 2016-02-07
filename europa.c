@@ -62,6 +62,7 @@ const Uint8 *KEYBOARD_STATE;
 ////////////////////////
 
 // eu.Init()
+//   Initialize Europa; call at start of program
 static int eu_init(lua_State *L)
 {
 	SDL_SetMainReady(); // because SDL_MAIN_HANDLED
@@ -83,6 +84,8 @@ static int eu_init(lua_State *L)
 	return 0;
 }
 
+// eu.quit()
+//   Tear down Europa; call at end of program
 static int eu_quit(lua_State *L)
 {
 	Mix_CloseAudio();
