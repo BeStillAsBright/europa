@@ -83,6 +83,15 @@ static int eu_init(lua_State *L)
 	return 0;
 }
 
+static int eu_quit(lua_State *L)
+{
+	Mix_CloseAudio();
+	Mix_Quit();
+	IMG_Quit();
+	SDL_Quit();
+	return 0;
+}
+
 ///////////////////
 // main function //
 ///////////////////
