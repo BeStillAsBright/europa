@@ -1,0 +1,8 @@
+Main module:
+eu.*
+
+eu.init():
+Initialize Europa. Call this first!!
+
+eu.quit():
+Tear down Europa. Call right before quitting program!
