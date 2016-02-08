@@ -73,7 +73,7 @@ static int eu_init(lua_State *L)
 		lua_pushfstring(L,"SDL_image init failed: %s\n",IMG_GetError());
 		lua_error(L);
 	}
-	
+
 	Mix_AllocateChannels(100);
 	int merr = Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT,2,1024);
 	if (merr) {
@@ -94,6 +94,23 @@ static int eu_quit(lua_State *L)
 	SDL_Quit();
 	return 0;
 }
+
+// eu.delay(ms:int)
+static int eu_delay(lua_State *L)
+{
+	int ms = luaL_checkinteger(L,1);
+	SDL_Delay(ms);
+	return 0;
+}
+
+// eu.main module table
+static const luaL_Reg eu_module_fns[] = {
+	{"init", &eu_init},
+	{"quit", &eu_quit},
+	{"delay", &eu_delay},
+	{NULL, NULL}
+};
+
 
 ///////////////////
 // main function //
