@@ -111,6 +111,28 @@ static const luaL_Reg eu_module_fns[] = {
 	{NULL, NULL}
 };
 
+/////////////////////
+// Event handling: //
+// eu.event.*      //
+/////////////////////
+
+// a helper function to set up our keymap tables
+static void euh_init_keymaps(lua_State *L)
+{
+	// SDLK_* const-> string
+	lua_newtable(L);
+	// string -> SDLK_* const
+	lua_newtable(L);
+	
+	// put the >800 lines of setting fields in a separate file!
+#include "euh_init_keymaps.inc"
+	
+	// set the tables in the registery
+	lua_setfield(L, LUA_REGISTRYINDEX, EU_STR_TO_SDLK_TBL);
+	lua_setfield(L, LUA_REGISTRYINDEX, EU_SDLK_TO_STR_TBL);
+
+}
+
 
 ///////////////////
 // main function //
