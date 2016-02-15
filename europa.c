@@ -73,6 +73,16 @@ static int eu_init(lua_State *L)
 		lua_pushfstring(L,"SDL_image init failed: %s\n",IMG_GetError());
 		lua_error(L);
 	}
+	
+	int mixflags = MIX_INIT_FLAC | MIX_INIT_OGG;
+#ifdef LUNA_USE_MP3
+	mixflags |= MIX_INIT_MP3;
+#endif // LUNA_USE_MP3
+	int mixinitted = Mix_Init(mixflags);
+	if ((mixinitted&mixflags) != mixflags) {
+		lua_pushfstring(L, "luna.init-Mix_Init: %s\n", Mix_GetError());
+		lua_error(L);
+	}
 
 	Mix_AllocateChannels(100);
 	int merr = Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT,2,1024);
