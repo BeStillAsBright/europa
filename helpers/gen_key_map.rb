@@ -1,14 +1,14 @@
-def push_vals(f, sdl_const, luna_const)
+def push_vals(f, sdl_const, eu_const)
     f.puts "\t// #{sdl_const}"
-    f.puts "\tlua_pushliteral(L,\"#{luna_const}\");"
+    f.puts "\tlua_pushliteral(L,\"#{eu_const}\");"
     f.puts "\tlua_pushinteger(L,#{sdl_const});"
     f.puts "\tlua_rawset(L,-3);"
-    f.puts "\tlua_pushliteral(L,\"#{luna_const}\");"
+    f.puts "\tlua_pushliteral(L,\"#{eu_const}\");"
     f.puts "\tlua_rawseti(L,-3,#{sdl_const});"
 end
 
 File.open("keymap.txt", "w") do |f|
-  f.puts "static void lh_luna_init_keymaps(lua_State *L)"
+  f.puts "static void euh_init_keymaps(lua_State *L)"
   f.puts "{"
   f.puts "\t// SDLK_* const-> string"
   f.puts "\tlua_newtable(L);"
@@ -20,32 +20,32 @@ File.open("keymap.txt", "w") do |f|
   f.puts "\n\t// number keys //\n"
   (0..9).each do |c|
     sdl_const = "SDLK_#{c}"
-    luna_const = "#{c}"
-    push_vals(f, sdl_const, luna_const)
+    eu_const = "#{c}"
+    push_vals(f, sdl_const, eu_const)
   end
 
   # regular letters
   f.puts "\n\t// letters //\n"
   ('a'..'z').each do |c|
     sdl_const = "SDLK_#{c}"
-    luna_const = "#{c}"
-    push_vals(f, sdl_const, luna_const)
+    eu_const = "#{c}"
+    push_vals(f, sdl_const, eu_const)
   end
 
   # F keys
   f.puts "\n\t// F keys //\n"
   (1..24).each do |c|
     sdl_const = "SDLK_F#{c}"
-    luna_const = "f#{c}"
-    push_vals(f, sdl_const, luna_const)
+    eu_const = "f#{c}"
+    push_vals(f, sdl_const, eu_const)
   end
 
   # keypad numbers
   f.puts "\n\t// KP numbers //\n"
   (0..9).each do |c|
     sdl_const = "SDLK_KP_#{c}"
-    luna_const = "kp#{c}"
-    push_vals(f, sdl_const, luna_const)
+    eu_const = "kp#{c}"
+    push_vals(f, sdl_const, eu_const)
   end
 
   # keypad symbols
@@ -140,8 +140,8 @@ File.open("keymap.txt", "w") do |f|
 
   # set metatables
   # LUA_REGISTRYINDEX
-  f.puts "\tlua_setfield(L, LUA_REGISTRYINDEX, LUNA_STR_TO_SDLK_TBL);"
-  f.puts "\tlua_setfield(L, LUA_REGISTRYINDEX, LUNA_SDLK_TO_STR_TBL);"
+  f.puts "\tlua_setfield(L, LUA_REGISTRYINDEX, EU_STR_TO_SDLK_TBL);"
+  f.puts "\tlua_setfield(L, LUA_REGISTRYINDEX, EU_SDLK_TO_STR_TBL);"
 
   #end of fn
   f.puts "}" 
