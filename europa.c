@@ -51,6 +51,16 @@ typedef struct eu_Music {
 	Mix_Music *music;
 } eu_Music;
 
+//////////////////////////
+// lua compat functions //
+//////////////////////////
+void eu_lua_copy (lua_State *L, int from, int to) {
+  int abs_to = lua_absindex(L, to);
+  luaL_checkstack(L, 1, "not enough stack slots");
+  lua_pushvalue(L, from);
+  lua_replace(L, abs_to);
+}
+
 ////////////////////////
 // SDL Keyboard state //
 ////////////////////////
@@ -142,6 +152,517 @@ static void euh_init_keymaps(lua_State *L)
 	lua_setfield(L, LUA_REGISTRYINDEX, EU_SDLK_TO_STR_TBL);
 
 }
+
+static void euh_set_keycode(lua_State *L, SDL_Keysym *ks)
+{
+	lua_pushstring(L, LUNA_SDLK_TO_STR_TBL); // evt, tblnm
+	lua_gettable(L, LUA_REGISTRYINDEX); // evt, tbl
+	lua_pushinteger(L, ks->sym); // evt, tbl, int
+	lua_gettable(L, -2); // evt, tbl, str
+	lua_remove(L, -2); // remove lookup table from stack
+	lua_setfield(L,-2,"key"); // set field in event table
+}
+
+static void euh_make_key_event(lua_State *L, SDL_Event *e)
+{
+	// add our table
+	lua_newtable(L);
+
+	// set the table's "type" field so user can switch on it
+	if (e->type == SDL_KEYDOWN) {
+		lua_pushliteral(L,"key_down");
+	} else {
+		lua_pushliteral(L,"key_up");
+	}
+	lua_setfield(L,-2,"type");
+
+	// add "window_id" field
+	lua_pushinteger(L,e->key.windowID);
+	lua_setfield(L,-2,"window_id");
+
+	// add "timestamp" field
+	lua_pushinteger(L, e->key.timestamp);
+	lua_setfield(L,-2,"timestamp");
+
+	// set the "repeat" field; true if a repeated press
+	lua_pushboolean(L,e->key.repeat);
+	lua_setfield(L,-2,"repeat");
+
+	// set the "state" field to "pressed" or "released"
+	if (e->key.state == SDL_PRESSED) {
+		lua_pushliteral(L,"pressed");
+	} else {
+		lua_pushliteral(L,"released");
+	}
+	lua_setfield(L,-2,"state");
+
+	// set keysym info. It gets ugly here, so we're using a helper fn.
+	euh_set_keycode(L,&e->key.keysym);
+}
+
+static void euh_make_mouse_motion_event(lua_State *L, SDL_Event *e)
+{
+	// the event table to be returned
+	lua_newtable(L);
+
+	// add type field
+	lua_pushliteral(L,"mouse_motion");
+	lua_setfield(L,-2,"type");
+
+	// add timestamp
+	lua_pushinteger(L,e->motion.timestamp);
+	lua_setfield(L,-2,"timestamp");
+
+	// add window_id
+	lua_pushinteger(L,e->motion.windowID);
+	lua_setfield(L,-2,"window_id");
+
+	// add is_touch field
+	int istouch = (e->motion.which == SDL_TOUCH_MOUSEID);
+	lua_pushboolean(L,istouch);
+	lua_setfield(L,-2,"is_touch");
+
+	// set state table fields (event.buttons)
+	lua_newtable(L); // table for event.buttons
+	int left = (e->motion.state & SDL_BUTTON_LMASK);
+	int middle = (e->motion.state & SDL_BUTTON_MMASK);
+	int right = (e->motion.state & SDL_BUTTON_RMASK);
+	int x1 = (e->motion.state & SDL_BUTTON_X1MASK);
+	int x2 = (e->motion.state & SDL_BUTTON_X2MASK);
+	lua_pushboolean(L,left);
+	lua_setfield(L,-2,"left");
+	lua_pushboolean(L,middle);
+	lua_setfield(L,-2,"middle");
+	lua_pushboolean(L,right);
+	lua_setfield(L,-2,"right");
+	lua_pushboolean(L,x1);
+	lua_setfield(L,-2,"x1");
+	lua_pushboolean(L,x2);
+	lua_setfield(L,-2,"x2");
+	lua_setfield(L,-2,"buttons"); // set event.buttons
+
+	// set x field
+	lua_pushinteger(L,e->motion.x);
+	lua_setfield(L,-2,"x");
+
+	// set y field
+	lua_pushinteger(L, e->motion.y);
+	lua_setfield(L,-2,"y");
+
+	// set x_rel field
+	lua_pushinteger(L, e->motion.xrel);
+	lua_setfield(L,-2,"x_rel");
+	
+	// set y_rel field
+	lua_pushinteger(L, e->motion.yrel);
+	lua_setfield(L,-2,"y_rel");
+}
+
+static void euh_make_mouse_button_event(lua_State *L, SDL_Event *e)
+{
+	// push our table to return
+	lua_newtable(L);
+
+	// set type field
+	if (e->type == SDL_MOUSEBUTTONDOWN) {
+		lua_pushliteral(L,"mouse_down");
+	} else {
+		lua_pushliteral(L,"mouse_up");
+	}
+	lua_setfield(L,-2,"type");
+
+	// set timestamp
+	lua_pushinteger(L,e->button.timestamp);
+	lua_setfield(L,-2,"timestamp");
+
+	// window_id
+	lua_pushinteger(L,e->button.windowID);
+	lua_setfield(L,-2,"window_id");
+
+	// is_touch
+	int istouch = (e->button.which == SDL_TOUCH_MOUSEID);
+	lua_pushboolean(L,istouch);
+	lua_setfield(L,-2,"is_touch");
+
+	// set button field
+	switch (e->button.button) {
+		case SDL_BUTTON_LEFT:
+			lua_pushliteral(L,"left");
+			break;
+		case SDL_BUTTON_MIDDLE:
+			lua_pushliteral(L,"middle");
+			break;
+		case SDL_BUTTON_RIGHT:
+			lua_pushliteral(L,"right");
+			break;
+		case SDL_BUTTON_X1:
+			lua_pushliteral(L,"x1");
+			break;
+		case SDL_BUTTON_X2:
+			lua_pushliteral(L,"x2");
+			break;
+	}
+	lua_setfield(L,-2,"button");
+
+	// set state field
+	if (e->button.state == SDL_PRESSED) {
+		lua_pushliteral(L,"pressed");
+	} else {
+		lua_pushliteral(L,"released");
+	}
+	lua_setfield(L,-2,"state");
+	
+	// x field
+	lua_pushinteger(L,e->button.x);
+	lua_setfield(L,-2,"x");
+	
+	// y field
+	lua_pushinteger(L,e->button.y);
+	lua_setfield(L,-2,"y");
+}
+
+static void euh_make_mouse_wheel_event(lua_State *L, SDL_Event *e)
+{
+	lua_newtable(L);
+	
+	// timestamp
+	lua_pushinteger(L, e->wheel.timestamp);
+	lua_setfield(L,-2,"timestamp");
+	// window_id
+	lua_pushinteger(L, e->wheel.windowID);
+	lua_setfield(L,-2,"window_id");
+	// is_touch
+	int istouch = (e->wheel.which == SDL_TOUCH_MOUSEID);
+	lua_pushboolean(L,istouch);
+	lua_setfield(L,-2,"is_touch");
+	// x
+	lua_pushinteger(L,e->wheel.x);
+	lua_setfield(L,-2,"x");
+	// y
+	lua_pushinteger(L,e->wheel.y);
+	lua_setfield(L,-2,"y");
+}
+
+static void euh_make_controller_axis_event(lua_State *L, SDL_Event *e)
+{
+	// event table
+	lua_newtable(L);
+
+	// event type
+	lua_pushliteral(L,"controller_axis");
+	lua_setfield(L,-2,"type");
+
+	// timestamp
+	lua_pushinteger(L,e->caxis.timestamp);
+	lua_setfield(L,-2,"timestamp");
+
+	// controller_id
+	lua_pushinteger(L,e->caxis.which);
+	lua_setfield(L,-2,"controller_id");
+
+	// axis
+	switch (e->caxis.axis) {
+		case SDL_CONTROLLER_AXIS_LEFTX:
+			lua_pushliteral(L,"left_x");
+			break;
+		case SDL_CONTROLLER_AXIS_LEFTY:
+			lua_pushliteral(L,"left_y");
+			break;
+		case SDL_CONTROLLER_AXIS_RIGHTX:
+			lua_pushliteral(L,"right_x");
+			break;
+		case SDL_CONTROLLER_AXIS_RIGHTY:
+			lua_pushliteral(L,"right_y");
+			break;
+		case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
+			lua_pushliteral(L,"left_trigger");
+			break;
+		case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
+			lua_pushliteral(L,"right_trigger");
+			break;
+	}
+	lua_setfield(L,-2,"axis");
+
+	// value:
+	lua_pushinteger(L,e->caxis.value);
+	lua_setfield(L,-2,"value");
+}
+
+static void euh_make_controller_button_event(lua_State *L, SDL_Event *e)
+{
+	// table
+	lua_newtable(L);
+
+	// type
+	if (e->cbutton.type == SDL_CONTROLLERBUTTONDOWN) {
+		lua_pushliteral(L,"controller_button_down");
+	} else {
+		lua_pushliteral(L,"controller_button_up");
+	}
+	lua_setfield(L,-2,"type");
+
+	// timestamp
+	lua_pushinteger(L,e->cbutton.timestamp);
+	lua_setfield(L,-2,"timestamp");
+
+	// controller_id
+	lua_pushinteger(L,e->cbutton.which);
+	lua_setfield(L,-2,"controller_id");
+
+	// button
+	switch (e->cbutton.button) {
+		case SDL_CONTROLLER_BUTTON_A:
+			lua_pushliteral(L,"a");
+			break;
+		case SDL_CONTROLLER_BUTTON_B:
+			lua_pushliteral(L,"b");
+			break;
+		case SDL_CONTROLLER_BUTTON_X:
+			lua_pushliteral(L,"x");
+			break;
+		case SDL_CONTROLLER_BUTTON_Y:
+			lua_pushliteral(L,"y");
+			break;
+		case SDL_CONTROLLER_BUTTON_BACK:
+			lua_pushliteral(L,"back");
+			break;
+		case SDL_CONTROLLER_BUTTON_GUIDE:
+			lua_pushliteral(L,"guide");
+			break;
+		case SDL_CONTROLLER_BUTTON_START:
+			lua_pushliteral(L,"start");
+			break;
+		case SDL_CONTROLLER_BUTTON_LEFTSTICK:
+			lua_pushliteral(L,"left_stick");
+			break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
+			lua_pushliteral(L,"right_stick");
+			break;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+			lua_pushliteral(L,"left_shoulder");
+			break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+			lua_pushliteral(L,"right_shoulder");
+			break;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			lua_pushliteral(L,"dpad_up");
+			break;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+			lua_pushliteral(L,"dpad_down");
+			break;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+			lua_pushliteral(L,"dpad_left");
+			break;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+			lua_pushliteral(L,"dpad_right");
+			break;
+	}
+	lua_setfield(L,-2,"button");
+
+	// state
+	if (e->cbutton.state == SDL_PRESSED) {
+		lua_pushliteral(L,"pressed");
+	} else {
+		lua_pushliteral(L,"released");
+	}
+	lua_setfield(L,-2,"state");
+}
+
+static void euh_make_controller_device_event(lua_State *L, SDL_Event *e)
+{
+	lua_newtable(L);
+	switch (e->type) {
+		case SDL_CONTROLLERDEVICEADDED:
+			lua_pushliteral(L,"controller_added");
+			break;
+		case SDL_CONTROLLERDEVICEREMAPPED:
+			lua_pushliteral(L,"controller_remapped");
+			break;
+		case SDL_CONTROLLERDEVICEREMOVED:
+			lua_pushliteral(L,"controller_removed");
+			break;
+	}
+	lua_setfield(L,-2,"type");
+	
+	// timestamp
+	lua_pushinteger(L,e->cdevice.timestamp);
+	lua_setfield(L,-2,"timestamp");
+	
+	// controller_id
+	lua_pushinteger(L,e->cdevice.which);
+	lua_setfield(L,-2,"controller_id");
+}
+
+static void euh_make_window_event(lua_State *L, SDL_Event *e)
+{
+	lua_pushnil(L); // this gets copied over by the event type
+	lua_newtable(L);
+
+	// timestamp
+	lua_pushinteger(L,e->window.timestamp);
+	lua_setfield(L,-2,"timestamp");
+	// window_id
+	lua_pushinteger(L,e->window.windowID);
+	lua_setfield(L,-2,"window_id");
+	// type (and data)
+	switch (e->window.event) {
+		case SDL_WINDOWEVENT_SHOWN:
+			lua_pushliteral(L,"window_shown");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_HIDDEN:
+			lua_pushliteral(L,"window_hidden");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_EXPOSED:
+			lua_pushliteral(L,"window_exposed");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_MOVED:
+			lua_pushinteger(L,e->window.data1);
+			lua_setfield(L,-2,"x");
+			lua_pushinteger(L,e->window.data2);
+			lua_setfield(L,-2,"y");
+			lua_pushliteral(L,"window_moved");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_RESIZED:
+			lua_pushinteger(L,e->window.data1);
+			lua_setfield(L,-2,"w");
+			lua_pushinteger(L,e->window.data2);
+			lua_setfield(L,-2,"h");
+			lua_pushliteral(L,"window_resized");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_MINIMIZED:
+			lua_pushliteral(L,"window_minimized");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_MAXIMIZED:
+			lua_pushliteral(L,"window_maximized");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_RESTORED:
+			lua_pushliteral(L,"window_restored");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_ENTER:
+			lua_pushliteral(L,"window_enter");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_LEAVE:
+			lua_pushliteral(L,"window_leave");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_FOCUS_GAINED:
+			lua_pushliteral(L,"window_focus_gained");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			lua_pushliteral(L,"window_focus_lost");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+		case SDL_WINDOWEVENT_CLOSE:
+			lua_pushliteral(L,"window_close");
+			eu_lua_copy(L,-1,-3);
+			lua_setfield(L,-2,"type");
+			break;
+	}
+}
+
+// eu.event.poll() -> type: string, event: eu.Event
+static int eu_event_poll(lua_State *L)
+{
+	SDL_Event event;
+	SDL_PollEvent(&event);
+	// push a table to use as our return value
+	switch (event.type) {
+		// keyboard events
+		case SDL_KEYDOWN:
+			lua_pushliteral(L,"key_down");
+			euh_make_key_event(L,&event);
+			break;
+		case SDL_KEYUP:
+			lua_pushliteral(L,"key_up");
+			euh_make_key_event(L, &event);
+			break;
+		// mouse events
+		case SDL_MOUSEMOTION:
+			lua_pushliteral(L,"mouse_motion");
+			euh_make_mouse_motion_event(L,&event);
+			break;
+		case SDL_MOUSEBUTTONDOWN:
+			lua_pushliteral(L,"mouse_down");
+			euh_make_mouse_button_event(L,&event);
+			break;
+		case SDL_MOUSEBUTTONUP:
+			lua_pushliteral(L,"mouse_up");
+			euh_make_mouse_button_event(L,&event);
+			break;
+		case SDL_MOUSEWHEEL:
+			lua_pushliteral(L,"mouse_wheel");
+			euh_make_mouse_wheel_event(L,&event);
+			break;
+		// controller events
+		case SDL_CONTROLLERAXISMOTION:
+			lua_pushliteral(L,"controller_axis");
+			euh_make_controller_axis_event(L,&event);
+			break;
+		case SDL_CONTROLLERBUTTONDOWN:
+			lua_pushliteral(L,"controller_button_down");
+			euh_make_controller_button_event(L,&event);
+			break;
+		case SDL_CONTROLLERBUTTONUP:
+			lua_pushliteral(L,"controller_button_up");
+			euh_make_controller_button_event(L,&event);
+			break;
+		case SDL_CONTROLLERDEVICEADDED:
+			lua_pushliteral(L,"controller_added");
+			euh_make_controller_device_event(L,&event);
+			break;
+		case SDL_CONTROLLERDEVICEREMOVED:
+			lua_pushliteral(L,"controller_removed");
+			euh_make_controller_device_event(L,&event);
+			break;
+		case SDL_CONTROLLERDEVICEREMAPPED:
+			lua_pushliteral(L,"controller_remapped");
+			euh_make_controller_device_event(L,&event);
+			break;
+		case SDL_WINDOWEVENT:
+			// helper function handles pushing the type too!
+			euh_make_window_event(L,&event);
+		case SDL_QUIT:
+			// this is small enough to handle here
+			lua_pushliteral(L,"quit");
+			lua_newtable(L);
+			lua_pushvalue(L,-2); // push copy of "quit"
+			lua_setfield(L,-2,"type");
+			lua_pushinteger(L, event.quit.timestamp);
+			lua_setfield(L,-2,"timestamp");
+			break;
+		default:
+			break;
+	}
+	return 2; // returns: type:string, event:table
+}
+
+// luna.event module
+static const luaL_Reg eu_event_module_fns[] = {
+	{"poll", &eu_event_poll},
+	{NULL,NULL}
+};
 
 
 ///////////////////
