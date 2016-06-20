@@ -665,7 +665,7 @@ static const luaL_Reg eu_event_module_fns[] = {
 };
 
 // ////////////////////////////
-// luna.keyboard.* functions //
+// eu.keyboard.* functions //
 // ////////////////////////////
 
 static int euh_init_keymod_table(lua_State *L)
@@ -812,6 +812,64 @@ static luaL_Reg eu_keyboard_module_fns[] = {
 	{NULL,NULL}
 };
 
+// //////////////////////////////////
+// eu.window.* functions/methods //
+// //////////////////////////////////
+
+// eu.Window.new(w:int,h:int,fullscreen:boolean) -> luna.Window
+static int eu_window_new(lua_State *L)
+{
+	int w = luaL_checkinteger(L,1);
+	int h = luaL_checkinteger(L,2);
+	luaL_checktype(L,3,LUA_TBOOLEAN);
+	int fs = lua_toboolean(L,3);
+	eu_Window *win = lua_newuserdata(L, sizeof(*win));
+
+	int win_flags = SDL_WINDOW_HIDDEN;
+	if (fs) {
+		win_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+	}
+	int err = SDL_CreateWindowAndRenderer(w, h, 
+			win_flags, &win->window, &win->renderer);
+
+	if (err) {
+		lua_pushfstring(L,"ERROR: eu.window.new failed: %s\n", SDL_GetError);
+		lua_error(L);
+	}
+
+	win->closed = 0;
+	luaL_setmetatable(L,EU_WINDOW_MT);
+	return 1; // return our window
+}
+
+// luna.Window:show()
+static int eu_window_show(lua_State *L)
+{
+	eu_Window *win = luaL_checkudata(L,1,EU_WINDOW_MT);
+	SDL_ShowWindow(win->window);
+	return 0;
+}
+
+static int eu_window_hide(lua_State *L)
+{
+	eu_Window *win = luaL_checkudata(L,1,EU_WINDOW_MT);
+	SDL_HideWindow(win->window);
+	return 0;
+}
+
+// eu.Window:close()
+static int eu_window_close(lua_State *L)
+{
+	eu_Window *win = luaL_checkudata(L,1,EU_WINDOW_MT);
+	if (!win->closed) {
+		SDL_DestroyRenderer(win->renderer);
+		SDL_DestroyWindow(win->window);
+		win->closed = 1;
+	}
+	return 0;
+}
+
+// TODO: at eu.Window:draw()!!!
 
 ///////////////////
 // main function //
